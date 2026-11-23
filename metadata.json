@@ -1,0 +1,6 @@
+{
+  "name": "Grammar & Writing Studio",
+  "description": "Ultra-fast bilingual English & Bengali grammar solver and writing studio with instant local transformation engines and AI-enhanced composition.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
