@@ -211,24 +211,40 @@ ${bilingual ? 'Include short Bengali (বাংলা) meanings for each prefix,
               ? '10 lines of dialogue'
               : 'around 170-220 words';
 
+    const isFormalDialogue =
+      kind === 'dialogue' &&
+      /\b(bank|banker|manager|principal|headmaster|headmistress|teacher|professor|dean|doctor|physician|patient|officer|police|director|ceo|hr|interviewer|interview|passport|visa|embassy|librarian|customer|client|applicant|candidate|receptionist|cashier|clerk|lawyer|judge|landlord|boss|supervisor|employer|account|loan|complaint|appointment|admission|formal|official|sir|madam)\b/i.test(
+        `${topic} ${speakers || ''}`,
+      );
+
     const formatGuide =
       kind === 'dialogue'
-        ? `Write a natural, well-structured dialogue between ${String(speakers || 'Rakib & Abdullah')}. Format every turn strictly as "Speaker: line" on its own line (no blank lines, no intro/outro text). ${
+        ? `Write a well-structured dialogue between ${String(speakers || 'Rakib & Abdullah')}. Format every turn strictly as "Speaker: line" on its own line (no blank lines, no stage directions, no intro/outro text). ${
+            isFormalDialogue
+              ? 'CRITICAL FORMAL REGISTER REQUIREMENT: This is a formal/official scenario. Strictly follow formal dialogue structure: begin with a courteous formal salutation and permission (e.g., "Good morning, Sir/Madam. May I come in?"), maintain respectful honorifics ("Sir", "Ma\'am", "Doctor") and polite official phrasing throughout, avoid all slang or casual friend banter ("Hey", "What is on your mind?", "I am doing great!"), discuss the purpose/procedures professionally, and end with a polite formal closing.'
+              : 'Match the requested tone naturally and keep turns realistic.'
+          } ${
             parsedCustom && length === 'Custom'
               ? `You MUST output exactly ${parsedCustom} lines.`
               : ''
           }`
         : kind === 'composition'
-          ? `Write a multi-paragraph essay/composition separated by blank lines. ${
+          ? `Write a clean, flowing multi-paragraph essay/composition separated by blank lines. CRITICAL: Do NOT include any section headings, point names, or labels such as "Introduction", "Significance", "Core Significance", "Merits", "Demerits", or "Conclusion". Write plain continuous prose paragraphs only. ${
               parsedCustom && length === 'Custom'
                 ? `Match the exact target length of ${parsedCustom} words as closely as possible.`
                 : ''
             }`
-          : `Write a cohesive, high-scoring single paragraph without bullet points. ${
-              parsedCustom && length === 'Custom'
-                ? `Match the exact target length of ${parsedCustom} words as closely as possible.`
-                : ''
-            }`;
+          : kind === 'story'
+            ? `Write a vivid, cohesive chronological story in plain flowing paragraphs separated by blank lines (suitable as a classic moral story or completing story). Do NOT include section headings, bullet points, or a "Moral:" label heading—instead, weave the closing moral lesson naturally into the final sentence of the last paragraph. ${
+                parsedCustom && length === 'Custom'
+                  ? `Match the exact target length of ${parsedCustom} words as closely as possible.`
+                  : ''
+              }`
+            : `Write a cohesive, high-scoring single paragraph without bullet points or headings. ${
+                parsedCustom && length === 'Custom'
+                  ? `Match the exact target length of ${parsedCustom} words as closely as possible.`
+                  : ''
+              }`;
 
     try {
       const response = await ai.models.generateContent({
@@ -264,6 +280,153 @@ ${bilingual ? 'Also provide a short Bengali summary/key vocabulary note.' : ''}`
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to generate writing with Gemini.';
       return res.status(502).json({ error: 'GEMINI_ERROR', message });
+    }
+  });
+
+  app.post('/api/ai/exam', async (req, res) => {
+    const ai = getAiClient();
+    if (!ai) {
+      return res.status(503).json({
+        error: 'AI_UNAVAILABLE',
+        message: 'Gemini API key is not configured on the server.',
+      });
+    }
+
+    const { title, topics, difficulty, count, bilingual } = req.body ?? {};
+    const validTopics = Array.isArray(topics) && topics.length > 0
+      ? topics.filter((t): t is string =>
+          ['narration', 'voice', 'morpheme', 'pos', 'verbs'].includes(String(t)),
+        )
+      : ['narration', 'voice', 'morpheme', 'pos', 'verbs'];
+
+    const requestedCount = Math.max(
+      3,
+      Math.min(20, typeof count === 'number' && Number.isFinite(count) ? Math.round(count) : 10),
+    );
+
+    try {
+      const response = await ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: `Create a high-quality English Grammar Section Mock Exam paper.
+Title: ${typeof title === 'string' && title.trim() ? title.trim() : `${String(difficulty || 'SSC Standard')} Grammar Mock Exam`}
+Difficulty: ${String(difficulty || 'SSC Standard')}
+Topics to cover evenly: ${validTopics.join(', ')}
+Exact Question Count: ${requestedCount}
+
+Rules per topic:
+- "narration": Direct <-> Indirect speech transformation (type: "text").
+- "voice": Active <-> Passive transformation (type: "text").
+- "morpheme": Fill-in-the-blank Prefix/Suffix transformation with root in brackets e.g. "Nobody trusts a _____ (honest) person." where answer is just the single transformed word (type: "text").
+- "pos": Identify Part of Speech of **bolded** word in a sentence with 4 crisp MCQ options (type: "mcq").
+- "verbs": Right form of verb in brackets e.g. "She has _____ (write) three poems." where answer is only the verb phrase needed for the blank (type: "text").
+
+Ensure every question has unambiguous answers, optional acceptableAnswers variants, marks=1, and concise ${bilingual ? 'English and Bengali (বাংলা)' : 'English (plus optional short Bengali)'} explanations.`,
+        config: {
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              questions: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    topic: { type: Type.STRING },
+                    type: { type: Type.STRING },
+                    instruction: { type: Type.STRING },
+                    prompt: { type: Type.STRING },
+                    options: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING },
+                    },
+                    answer: { type: Type.STRING },
+                    acceptableAnswers: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING },
+                    },
+                    explanationEn: { type: Type.STRING },
+                    explanationBn: { type: Type.STRING },
+                  },
+                  required: ['topic', 'type', 'instruction', 'prompt', 'answer', 'explanationEn'],
+                },
+              },
+            },
+            required: ['title', 'questions'],
+          },
+        },
+      });
+
+      const raw = (response.text ?? '{}').trim();
+      const parsed = JSON.parse(raw);
+      return res.json({ ok: true, data: parsed });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to generate mock exam with Gemini.';
+      return res.status(502).json({ error: 'GEMINI_ERROR', message });
+    }
+  });
+
+  app.post('/api/ai/tts', async (req, res) => {
+    const ai = getAiClient();
+    if (!ai) {
+      return res.status(503).json({
+        error: 'AI_UNAVAILABLE',
+        message: 'Gemini API key is not configured on the server.',
+      });
+    }
+
+    const { text } = req.body ?? {};
+    if (typeof text !== 'string' || text.trim().length === 0) {
+      return res.status(400).json({ error: 'INVALID_INPUT', message: 'Text to read is required.' });
+    }
+
+    const cleanText = text.trim().slice(0, 4500);
+
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash-lite-tts',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: cleanText,
+                speechMetadata: {
+                  style:
+                    'Warm, calm, articulate young-to-mid-adult studio male narrator with a smooth baritone-tenor register, thoughtful measured pacing, reassuring conversational tone, and crisp English diction',
+                },
+              },
+            ],
+          },
+        ],
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: 'Charon' },
+            },
+          },
+        },
+      });
+
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (!base64Audio) {
+        return res.status(502).json({
+          error: 'TTS_EMPTY',
+          message: 'No audio data returned by TTS model.',
+        });
+      }
+
+      return res.json({
+        ok: true,
+        audioBase64: base64Audio,
+        mimeType: 'audio/wav',
+        voiceProfile: 'Studio Male Narrator (Charon)',
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to synthesize reading voice.';
+      return res.status(502).json({ error: 'GEMINI_TTS_ERROR', message });
     }
   });
 

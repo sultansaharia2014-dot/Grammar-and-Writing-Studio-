@@ -16,6 +16,7 @@ import { SuffixPrefixModule } from './components/modules/SuffixPrefixModule';
 import { PartsOfSpeechModule } from './components/modules/PartsOfSpeechModule';
 import { VerbChangingModule } from './components/modules/VerbChangingModule';
 import { WriterModule } from './components/modules/WriterModule';
+import { MockExamModule } from './components/modules/MockExamModule';
 import {
   DEFAULT_STUDIO_SETTINGS,
   StudioPrefsContext,
@@ -31,6 +32,8 @@ const INITIAL_INPUTS: Record<ModuleId, string> = {
   paragraph: MODULE_META.paragraph.examples[0],
   dialogue: MODULE_META.dialogue.examples[0],
   composition: MODULE_META.composition.examples[0],
+  story: MODULE_META.story.examples[0],
+  exam: MODULE_META.exam.examples[0],
 };
 
 const HISTORY_STORAGE_KEY = 'gws_history_v1';
@@ -211,7 +214,8 @@ export default function App() {
 
         {(activeModule === 'paragraph' ||
           activeModule === 'dialogue' ||
-          activeModule === 'composition') && (
+          activeModule === 'composition' ||
+          activeModule === 'story') && (
           <WriterModule
             key={activeModule}
             kind={activeModule}
@@ -222,6 +226,15 @@ export default function App() {
             onSaveHistory={(i, o, m, extra) =>
               handleSaveHistory(activeModule, i, o, m, extra)
             }
+          />
+        )}
+
+        {activeModule === 'exam' && (
+          <MockExamModule
+            titleInput={inputs.exam}
+            onTitleChange={(val) => updateModuleInput('exam', val)}
+            lang={lang}
+            onSaveHistory={(i, o, m) => handleSaveHistory('exam', i, o, m)}
           />
         )}
       </main>

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { BookOpen, History, Settings, Check } from 'lucide-react';
+import { BookOpen, History, Settings, Check, Volume2, Square } from 'lucide-react';
 import { LanguageMode, StudioSettings } from '../types/studio';
+import { useStudioSpeaker } from '../utils/studioSpeech';
 
 interface StudioHeaderProps {
   lang: LanguageMode;
@@ -23,6 +24,7 @@ export function StudioHeader({
 }: StudioHeaderProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const { speaking: samplePlaying, toggleSampleVoice } = useStudioSpeaker(settings.speechRate);
 
   useEffect(() => {
     function handleOutside(e: MouseEvent) {
@@ -167,6 +169,17 @@ export function StudioHeader({
                       }
                       className="w-full accent-[#E07A44] cursor-pointer"
                     />
+                    <button
+                      type="button"
+                      onClick={toggleSampleVoice}
+                      className="mt-2 flex w-full items-center justify-between rounded-2xl bg-[#FFF3E0]/85 hover:bg-[#FFF3E0] px-3 py-1.5 text-[11px] font-bold text-[#B86228] border border-white cursor-pointer"
+                    >
+                      <span>Reading Voice: Studio Narrator</span>
+                      <span className="inline-flex items-center gap-1">
+                        {samplePlaying ? <Square className="h-3 w-3" /> : <Volume2 className="h-3.5 w-3.5" />}
+                        <span>{samplePlaying ? 'Stop' : 'Sample'}</span>
+                      </span>
+                    </button>
                   </div>
 
                   <button

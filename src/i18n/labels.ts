@@ -155,8 +155,8 @@ export const MODULE_META: Record<
     title: { en: 'Composition Writer', bn: 'Composition Writer · রচনা লিখন' },
     shortTitle: { en: 'Composition', bn: 'Composition · রচনা' },
     subtitle: {
-      en: 'Create structured multi-paragraph essays with Introduction, Body, and Conclusion.',
-      bn: 'ভূমিকা, মূল অংশ ও উপসংহারসহ পূর্ণাঙ্গ ইংরেজি রচনা তৈরি করুন।',
+      en: 'Create cohesive, plain multi-paragraph essays with smooth transitions and no point headings.',
+      bn: 'কোনো পয়েন্টের শিরোনাম ছাড়াই সাবলীল ও পূর্ণাঙ্গ ইংরেজি রচনা তৈরি করুন।',
     },
     placeholder: {
       en: 'Enter a composition topic (e.g. Science in Everyday Life)...',
@@ -167,6 +167,45 @@ export const MODULE_META: Record<
       'Duties of a Student',
       'Digital Bangladesh & Smart Future',
       'Value of Time',
+    ],
+  },
+  story: {
+    id: 'story',
+    title: { en: 'Story Writer', bn: 'Story Writer · গল্প লিখন' },
+    shortTitle: { en: 'Story', bn: 'Story · গল্প' },
+    subtitle: {
+      en: 'Write classic moral stories and completing stories in vivid, flowing prose.',
+      bn: 'নৈতিক গল্প ও অসমাপ্ত গল্প (Completing Story) প্রাঞ্জল ইংরেজিতে তৈরি করুন।',
+    },
+    placeholder: {
+      en: 'Enter a story title or opening line (e.g. A Liar Shepherd Boy)...',
+      bn: 'গল্পের শিরোনাম বা শুরুর লাইন লিখুন (যেমন A Liar Shepherd Boy)...',
+    },
+    examples: [
+      'A Liar Shepherd Boy',
+      'Honesty is the Best Policy',
+      'A Giant and His Garden',
+      'A Thirsty Crow',
+      'Unity is Strength',
+      'The Hare and the Tortoise',
+    ],
+  },
+  exam: {
+    id: 'exam',
+    title: { en: 'Grammar Mock Exam', bn: 'Mock Exam · ব্যাকরণ পরীক্ষা' },
+    shortTitle: { en: 'Mock Exam', bn: 'Mock Exam · পরীক্ষা' },
+    subtitle: {
+      en: 'Build interactive grammar mock tests across Narration, Voice, Suffix & Prefix, POS, and Verbs with instant grading & Answer Key.',
+      bn: 'ব্যাকরণের সকল অধ্যায়ের ওপর নমুনা পরীক্ষা তৈরি করুন, উত্তর দিন এবং তাৎক্ষণিক ফলাফল ও Answer Key দেখুন।',
+    },
+    placeholder: {
+      en: 'Enter a custom exam title (e.g. SSC Grammar Section Model Test)...',
+      bn: 'পরীক্ষার শিরোনাম লিখুন (যেমন SSC Grammar Section Model Test)...',
+    },
+    examples: [
+      'SSC Grammar Section Model Test',
+      'Narration & Voice Quick Quiz',
+      'Suffix, Prefix & Verb Mastery Test',
     ],
   },
 };
@@ -184,6 +223,7 @@ export const UI_COPY = {
   copy: { en: 'Copy', bn: 'কপি' },
   copied: { en: 'Copied!', bn: 'কপি হয়েছে!' },
   listen: { en: 'Listen', bn: 'শুনুন' },
+  loadingVoice: { en: 'Preparing voice...', bn: 'ভয়েস তৈরি হচ্ছে...' },
   stopListening: { en: 'Stop', bn: 'থামুন' },
   saveHistory: { en: 'Save', bn: 'সংরক্ষণ' },
   saved: { en: 'Saved', bn: 'সংরক্ষিত' },

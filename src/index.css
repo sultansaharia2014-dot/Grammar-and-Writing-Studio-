@@ -410,6 +410,111 @@
   animation: pencil-scribble 340ms ease-in-out infinite;
 }
 
+@keyframes pen-write-glide {
+  0% {
+    left: 6.25%;
+    top: 31.6%;
+    opacity: 1;
+  }
+  42% {
+    left: 93.1%;
+    top: 27.6%;
+    opacity: 1;
+  }
+  49% {
+    left: 48%;
+    top: 48%;
+    opacity: 1;
+  }
+  53% {
+    left: 7.5%;
+    top: 71.05%;
+    opacity: 1;
+  }
+  88% {
+    left: 88.1%;
+    top: 65.8%;
+    opacity: 1;
+  }
+  95% {
+    left: 46%;
+    top: 46%;
+    opacity: 1;
+  }
+  100% {
+    left: 6.25%;
+    top: 31.6%;
+    opacity: 1;
+  }
+}
+
+@keyframes pen-wrist-cursive {
+  0%, 100% {
+    transform: translate(-7.14%, -92.86%) rotate(0deg) scale(1);
+  }
+  25% {
+    transform: translate(-7.14%, -94.2%) rotate(2.4deg) scale(1.015);
+  }
+  50% {
+    transform: translate(-7.14%, -92.2%) rotate(-2deg) scale(1);
+  }
+  75% {
+    transform: translate(-7.14%, -93.8%) rotate(2deg) scale(1.01);
+  }
+}
+
+@keyframes ink-draw-1 {
+  0% {
+    stroke-dashoffset: 100;
+    opacity: 1;
+  }
+  42%, 90% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  98%, 100% {
+    stroke-dashoffset: 0;
+    opacity: 0.14;
+  }
+}
+
+@keyframes ink-draw-2 {
+  0%, 52.5% {
+    stroke-dashoffset: 100;
+    opacity: 0;
+  }
+  53% {
+    stroke-dashoffset: 100;
+    opacity: 1;
+  }
+  88%, 92% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  98%, 100% {
+    stroke-dashoffset: 0;
+    opacity: 0.14;
+  }
+}
+
+.animate-pen-write-glide {
+  animation: pen-write-glide 4.6s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+}
+
+.animate-pen-wrist-cursive {
+  animation: pen-wrist-cursive 680ms ease-in-out infinite;
+}
+
+.animate-ink-draw-1 {
+  stroke-dasharray: 100;
+  animation: ink-draw-1 4.6s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+}
+
+.animate-ink-draw-2 {
+  stroke-dasharray: 100;
+  animation: ink-draw-2 4.6s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -433,7 +538,11 @@
   .animate-rubber-crumb-1,
   .animate-rubber-crumb-2,
   .animate-rubber-crumb-3,
-  .animate-pencil-scribble {
+  .animate-pencil-scribble,
+  .animate-pen-write-glide,
+  .animate-pen-wrist-cursive,
+  .animate-ink-draw-1,
+  .animate-ink-draw-2 {
     animation: none !important;
   }
   .bubbly-btn,

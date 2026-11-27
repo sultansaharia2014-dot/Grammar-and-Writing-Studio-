@@ -6,7 +6,9 @@ export type ModuleId =
   | 'verbs'
   | 'paragraph'
   | 'dialogue'
-  | 'composition';
+  | 'composition'
+  | 'story'
+  | 'exam';
 
 export type LanguageMode = 'en' | 'bn';
 
@@ -153,7 +155,7 @@ export type WriterTone = 'Exam Standard' | 'Academic' | 'Creative' | 'Simple';
 export type WriterLength = 'Short' | 'Medium' | 'Detailed' | 'Custom';
 
 export interface WriterResult {
-  kind: 'paragraph' | 'dialogue' | 'composition';
+  kind: 'paragraph' | 'dialogue' | 'composition' | 'story';
   title: string;
   body: string;
   keyPhrases: string[];
@@ -162,6 +164,60 @@ export interface WriterResult {
   sentenceCount: number;
   lineCount: number;
   source: 'local' | 'ai';
+}
+
+export type GrammarExamTopic = 'narration' | 'voice' | 'morpheme' | 'pos' | 'verbs';
+export type ExamDifficulty = 'Junior' | 'SSC Standard' | 'HSC Advanced';
+
+export interface ExamQuestion {
+  id: string;
+  topic: GrammarExamTopic;
+  difficulty: ExamDifficulty;
+  type: 'text' | 'mcq';
+  instruction: string;
+  prompt: string;
+  options?: string[];
+  answer: string;
+  acceptableAnswers?: string[];
+  marks: number;
+  explanation: BilingualText;
+}
+
+export interface MockExamPaper {
+  id: string;
+  title: string;
+  difficulty: ExamDifficulty;
+  topics: GrammarExamTopic[];
+  totalMarks: number;
+  durationMinutes: number;
+  questions: ExamQuestion[];
+  source: 'local' | 'ai';
+}
+
+export interface GradedQuestionResult {
+  questionId: string;
+  topic: GrammarExamTopic;
+  userAnswer: string;
+  correctAnswer: string;
+  isCorrect: boolean;
+  earnedMarks: number;
+  maxMarks: number;
+}
+
+export interface MockExamGradeReport {
+  earnedMarks: number;
+  totalMarks: number;
+  correctCount: number;
+  totalCount: number;
+  percentage: number;
+  letterGrade: string;
+  results: GradedQuestionResult[];
+  topicBreakdown: Array<{
+    topic: GrammarExamTopic;
+    correct: number;
+    total: number;
+    percentage: number;
+  }>;
 }
 
 export interface HistoryItem {

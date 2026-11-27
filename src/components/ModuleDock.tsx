@@ -7,6 +7,8 @@ import {
   AlignLeft,
   MessagesSquare,
   FileText,
+  BookOpen,
+  ClipboardCheck,
 } from 'lucide-react';
 import { LanguageMode, ModuleId } from '../types/studio';
 import { MODULE_META } from '../i18n/labels';
@@ -20,6 +22,8 @@ const MODULE_ORDER: ModuleId[] = [
   'paragraph',
   'dialogue',
   'composition',
+  'story',
+  'exam',
 ];
 
 const MODULE_ICONS: Record<ModuleId, typeof MessageSquareQuote> = {
@@ -31,6 +35,8 @@ const MODULE_ICONS: Record<ModuleId, typeof MessageSquareQuote> = {
   paragraph: AlignLeft,
   dialogue: MessagesSquare,
   composition: FileText,
+  story: BookOpen,
+  exam: ClipboardCheck,
 };
 
 interface ModuleDockProps {

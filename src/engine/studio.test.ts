@@ -5,8 +5,14 @@ import { solveVoice } from './voice';
 import { solveMorphemes } from './morpheme';
 import { solvePartsOfSpeech } from './pos';
 import { solveVerbChanging } from './verbs';
-import { generateLocalWriting, parseCustomCountInput } from './writerFallback';
+import {
+  generateLocalWriting,
+  isFormalDialogueTopic,
+  parseCustomCountInput,
+  resolveDialogueSpeakers,
+} from './writerFallback';
 import { normalizeStudioSettings } from '../context/StudioPrefsContext';
+import { pickStudioMaleVoice, prepareTextForReading } from '../utils/studioSpeech';
 
 test('Narration: Direct -> Indirect with vocative addressing', () => {
   const res = solveNarration('Rakib said to Abdullah, "Hey, friend, I am Rakib."', 'auto');
@@ -177,3 +183,171 @@ test('normalizeStudioSettings defaults realRubberAnimation and pencilWriteAnimat
   assert.equal(disabled.realRubberAnimation, false);
   assert.equal(disabled.pencilWriteAnimation, false);
 });
+
+test('Writer formal dialogue detection, speaker inference, and formal structure', () => {
+  const topic = 'a conversation between me and a Bank Manager';
+  assert.equal(isFormalDialogueTopic(topic, 'Rakib & Abdullah', 'Exam Standard'), true);
+  assert.equal(isFormalDialogueTopic('Benefits of Morning Walk', 'Rakib & Abdullah', 'Simple'), false);
+
+  assert.deepEqual(
+    resolveDialogueSpeakers(topic, 'Rakib & Abdullah'),
+    ['Customer', 'Bank Manager'],
+  );
+  assert.deepEqual(
+    resolveDialogueSpeakers('meeting with a doctor about fever', 'Rakib & Abdullah'),
+    ['Patient', 'Doctor'],
+  );
+
+  const formal15 = generateLocalWriting({
+    kind: 'dialogue',
+    topic,
+    tone: 'Exam Standard',
+    length: 'Custom',
+    customCount: 15,
+    speakers: 'Rakib & Abdullah',
+  });
+  assert.equal(formal15.lineCount, 15);
+  assert.match(formal15.title, /Formal Dialogue Between Customer and Bank Manager/i);
+  assert.match(formal15.body, /^Customer: Good morning, Sir\. May I come in\?/);
+  assert.match(formal15.body, /Bank Manager:/);
+  assert.doesNotMatch(formal15.body, /How are you doing|What is on your mind|I am doing great/i);
+
+  const casual = generateLocalWriting({
+    kind: 'dialogue',
+    topic: 'Benefits of Morning Walk',
+    tone: 'Simple',
+    length: 'Short',
+    speakers: 'Rakib & Abdullah',
+  });
+  assert.match(casual.body, /How are you doing today/i);
+});
+
+test('studioSpeech picks warm male English narrator voice and normalizes multi-line text for reading', () => {
+  const chosen = pickStudioMaleVoice([
+    { name: 'Samantha', lang: 'en-US' },
+    { name: 'Microsoft Zira Desktop', lang: 'en-US' },
+    { name: 'Microsoft Andrew Online (Natural) - English (United States)', lang: 'en-US' },
+    { name: 'Google Deutsch', lang: 'de-DE' },
+  ]);
+  assert.equal(chosen?.name, 'Microsoft Andrew Online (Natural) - English (United States)');
+
+  const cleaned = prepareTextForReading('Introduction\n\nReading   books  helps.\nIt builds focus.');
+  assert.equal(cleaned, 'Introduction. Reading books helps. It builds focus.');
+});
+
+import {
+  ALL_GRAMMAR_TOPICS,
+  generateLocalMockExam,
+  gradeMockExam,
+  normalizeExamAnswer,
+} from './mockExam';
+
+test('Composition Maker generates plain prose without Introduction/Significance/Conclusion point headings', () => {
+  for (const length of ['Short', 'Medium', 'Detailed'] as const) {
+    const comp = generateLocalWriting({
+      kind: 'composition',
+      topic: 'Science in Everyday Life',
+      tone: 'Exam Standard',
+      length,
+    });
+    assert.doesNotMatch(
+      comp.body,
+      /^(Introduction|Core Significance|Practical Role in Daily Life|Future Outlook|Conclusion)$/im,
+    );
+    assert.ok(comp.body.includes('\n\n'));
+  }
+});
+
+test('Story Writer builds classic stories and respects Custom exact word count', () => {
+  const shepherd = generateLocalWriting({
+    kind: 'story',
+    topic: 'A Liar Shepherd Boy',
+    tone: 'Exam Standard',
+    length: 'Detailed',
+  });
+  assert.equal(shepherd.kind, 'story');
+  assert.equal(shepherd.title, 'A Liar Shepherd Boy');
+  assert.match(shepherd.body, /nobody believes a liar/i);
+
+  const honesty = generateLocalWriting({
+    kind: 'story',
+    topic: 'Honesty is the Best Policy',
+    tone: 'Exam Standard',
+    length: 'Medium',
+  });
+  assert.match(honesty.body, /golden.*axe|woodcutter/i);
+
+  const giant = generateLocalWriting({
+    kind: 'story',
+    topic: 'A Giant and His Garden',
+    tone: 'Creative',
+    length: 'Medium',
+  });
+  assert.match(giant.body, /giant|garden|stone wall/i);
+
+  const customStory = generateLocalWriting({
+    kind: 'story',
+    topic: 'A Liar Shepherd Boy',
+    tone: 'Exam Standard',
+    length: 'Custom',
+    customCount: 120,
+  });
+  assert.equal(customStory.wordCount, 120);
+});
+
+test('Grammar Mock Exam generator covers selected topics and grades answers accurately', () => {
+  assert.equal(normalizeExamAnswer('  A letter is   written by her.  '), 'a letter is written by her');
+
+  const paper = generateLocalMockExam({
+    title: 'Grammar Practice Paper',
+    topics: [...ALL_GRAMMAR_TOPICS],
+    difficulty: 'SSC Standard',
+    count: 10,
+    durationMinutes: 15,
+    shuffle: false,
+  });
+  assert.equal(paper.questions.length, 10);
+  assert.equal(paper.totalMarks, 10);
+  const coveredTopics = new Set(paper.questions.map((q) => q.topic));
+  for (const topic of ALL_GRAMMAR_TOPICS) {
+    assert.ok(coveredTopics.has(topic));
+  }
+
+  // Answer first 6 correctly (varying casing/punctuation) and leave last 4 blank/wrong
+  const answers: Record<string, string> = {};
+  paper.questions.forEach((q, idx) => {
+    if (idx < 6) {
+      answers[q.id] = q.answer.replace(/\.$/, '').toLowerCase();
+    } else {
+      answers[q.id] = 'wrong answer';
+    }
+  });
+
+  const report = gradeMockExam(paper, answers);
+  assert.equal(report.correctCount, 6);
+  assert.equal(report.earnedMarks, 6);
+  assert.equal(report.totalMarks, 10);
+  assert.equal(report.percentage, 60);
+  assert.equal(report.letterGrade, 'A-');
+
+  // Verify 10, 15, and 20 question counts never cap at 9 even for a single topic
+  for (const topic of ALL_GRAMMAR_TOPICS) {
+    for (const count of [10, 15, 20]) {
+      const singlePaper = generateLocalMockExam({
+        topics: [topic],
+        difficulty: 'SSC Standard',
+        count,
+      });
+      assert.equal(singlePaper.questions.length, count, `${topic} should yield ${count} questions`);
+      assert.equal(singlePaper.totalMarks, count);
+    }
+  }
+
+  const full20 = generateLocalMockExam({
+    topics: [...ALL_GRAMMAR_TOPICS],
+    difficulty: 'HSC Advanced',
+    count: 20,
+  });
+  assert.equal(full20.questions.length, 20);
+});
+

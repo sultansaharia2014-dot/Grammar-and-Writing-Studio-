@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Copy, Check, Volume2, Square, Bookmark, BookmarkCheck } from 'lucide-react';
+import { Copy, Check, Volume2, Square, Bookmark, BookmarkCheck, Loader2 } from 'lucide-react';
 import { LanguageMode } from '../types/studio';
 import { UI_COPY } from '../i18n/labels';
+import { useStudioSpeaker } from '../utils/studioSpeech';
 
 interface ResultHeroBubbleProps {
   resultText: string;
@@ -25,7 +26,7 @@ export function ResultHeroBubble({
   isAiEnhanced = false,
 }: ResultHeroBubbleProps) {
   const [copied, setCopied] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
+  const { speaking, loadingAudio, toggleSpeak } = useStudioSpeaker(speechRate);
 
   async function handleCopy() {
     try {
@@ -38,20 +39,7 @@ export function ResultHeroBubble({
   }
 
   function handleSpeak() {
-    if (!('speechSynthesis' in window)) return;
-    if (speaking) {
-      window.speechSynthesis.cancel();
-      setSpeaking(false);
-      return;
-    }
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(resultText);
-    utter.lang = 'en-US';
-    utter.rate = speechRate;
-    utter.onend = () => setSpeaking(false);
-    utter.onerror = () => setSpeaking(false);
-    setSpeaking(true);
-    window.speechSynthesis.speak(utter);
+    void toggleSpeak(resultText);
   }
 
   return (
@@ -72,15 +60,34 @@ export function ResultHeroBubble({
           <button
             type="button"
             onClick={handleSpeak}
-            aria-label={speaking ? 'Stop reading result aloud' : 'Listen to result'}
+            aria-label={speaking || loadingAudio ? 'Stop reading result aloud' : 'Listen to result'}
+            data-testid="listen-btn"
             className={`bubbly-btn inline-flex items-center gap-1.5 rounded-full px-3 lg:px-3.5 py-1.5 text-[11px] lg:text-xs font-bold border border-white cursor-pointer ${
-              speaking
+              speaking || loadingAudio
                 ? 'caramel-gloss text-white'
                 : 'bg-white/80 hover:bg-white text-[#362419]'
             }`}
           >
-            {speaking ? <Square className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5 text-[#B86228]" />}
-            <span>{speaking ? (lang === 'bn' ? UI_COPY.stopListening.bn : UI_COPY.stopListening.en) : (lang === 'bn' ? UI_COPY.listen.bn : UI_COPY.listen.en)}</span>
+            {loadingAudio ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : speaking ? (
+              <Square className="h-3.5 w-3.5" />
+            ) : (
+              <Volume2 className="h-3.5 w-3.5 text-[#B86228]" />
+            )}
+            <span>
+              {loadingAudio
+                ? lang === 'bn'
+                  ? UI_COPY.loadingVoice.bn
+                  : UI_COPY.loadingVoice.en
+                : speaking
+                  ? lang === 'bn'
+                    ? UI_COPY.stopListening.bn
+                    : UI_COPY.stopListening.en
+                  : lang === 'bn'
+                    ? UI_COPY.listen.bn
+                    : UI_COPY.listen.en}
+            </span>
           </button>
 
           <button

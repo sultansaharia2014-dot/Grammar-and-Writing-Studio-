@@ -8,22 +8,73 @@ import {
   BookmarkCheck,
   Sparkles,
   FileDown,
+  Loader2,
 } from 'lucide-react';
 import { LanguageMode, WriterLength, WriterResult, WriterTone } from '../../types/studio';
 import { MODULE_META, UI_COPY } from '../../i18n/labels';
 import {
   countTextStats,
   generateLocalWriting,
+  isFormalDialogueTopic,
   parseCustomCountInput,
+  resolveDialogueSpeakers,
 } from '../../engine/writerFallback';
 import { downloadWriterPdf } from '../../utils/pdfExport';
+import { useStudioSpeaker } from '../../utils/studioSpeech';
 import { InputWell } from '../InputWell';
+import { StylusPenLoader } from '../StylusPenLoader';
+
+function PenWritingLoadingCard({
+  kind,
+  isFormal,
+  lang,
+}: {
+  kind: 'paragraph' | 'dialogue' | 'composition' | 'story';
+  isFormal: boolean;
+  lang: LanguageMode;
+}) {
+  const headline =
+    kind === 'dialogue'
+      ? isFormal
+        ? lang === 'bn'
+          ? 'Writing Formal Dialogue · আনুষ্ঠানিক সংলাপ লেখা হচ্ছে...'
+          : 'Writing Formal Dialogue...'
+        : lang === 'bn'
+          ? 'Writing Dialogue · সংলাপ লেখা হচ্ছে...'
+          : 'Writing Dialogue...'
+      : kind === 'story'
+        ? lang === 'bn'
+          ? 'Writing Story · গল্প লেখা হচ্ছে...'
+          : 'Writing Story...'
+        : lang === 'bn'
+          ? `Writing ${kind[0].toUpperCase() + kind.slice(1)} · লেখা তৈরি হচ্ছে...`
+          : `Writing ${kind[0].toUpperCase() + kind.slice(1)}...`;
+
+  const subtext =
+    kind === 'dialogue'
+      ? isFormal
+        ? lang === 'bn'
+          ? 'যথাযথ সম্বোধন ও আনুষ্ঠানিক কাঠামো অনুযায়ী সংলাপ সাজানো হচ্ছে।'
+          : 'Composing respectful openings, structured exchanges, and a formal closing.'
+        : lang === 'bn'
+          ? 'বক্তাদের স্বাভাবিক কথোপকথন ও সঠিক লাইন সংখ্যা তৈরি হচ্ছে।'
+          : 'Crafting natural speaker turns with balanced pacing.'
+      : kind === 'story'
+        ? lang === 'bn'
+          ? 'সুন্দর কাহিনী ও প্রাঞ্জল বর্ণনায় গল্পটি সাজানো হচ্ছে।'
+          : 'Weaving a vivid narrative with natural pacing and a clear moral takeaway.'
+        : lang === 'bn'
+          ? 'আপনার বিষয় ও শব্দসংখ্যা অনুযায়ী সুন্দরভাবে লেখা সাজানো হচ্ছে।'
+          : 'Structuring cohesive sentences tailored to your topic and length.';
+
+  return <StylusPenLoader headline={headline} subtext={subtext} lang={lang} />;
+}
 
 const TONES: WriterTone[] = ['Exam Standard', 'Academic', 'Creative', 'Simple'];
 const LENGTHS: WriterLength[] = ['Short', 'Medium', 'Detailed', 'Custom'];
 
 interface WriterModuleProps {
-  kind: 'paragraph' | 'dialogue' | 'composition';
+  kind: 'paragraph' | 'dialogue' | 'composition' | 'story';
   topic: string;
   onTopicChange: (val: string) => void;
   lang: LanguageMode;
@@ -49,52 +100,84 @@ export function WriterModule({
   speechRate,
   onSaveHistory,
 }: WriterModuleProps) {
-  const defaultCustom = kind === 'dialogue' ? '15' : kind === 'composition' ? '250' : '150';
+  const defaultCustom =
+    kind === 'dialogue'
+      ? '15'
+      : kind === 'composition' || kind === 'story'
+        ? '250'
+        : '150';
 
   const [tone, setTone] = useState<WriterTone>('Exam Standard');
   const [length, setLength] = useState<WriterLength>('Medium');
   const [customInput, setCustomInput] = useState<string>(defaultCustom);
   const [speakers, setSpeakers] = useState('Rakib & Abdullah');
+  const [speakersManuallyEdited, setSpeakersManuallyEdited] = useState(false);
   const [aiOverride, setAiOverride] = useState<WriterResult | null>(null);
+  const [generatedDialogue, setGeneratedDialogue] = useState<WriterResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
+  const { speaking, loadingAudio, toggleSpeak } = useStudioSpeaker(speechRate);
   const [savedFlag, setSavedFlag] = useState(false);
   const [pdfSaved, setPdfSaved] = useState(false);
 
   const meta = MODULE_META[kind];
 
+  const effectiveSpeakers = useMemo(() => {
+    if (kind !== 'dialogue') return speakers;
+    if (speakersManuallyEdited) return speakers;
+    return resolveDialogueSpeakers(topic, speakers).join(' & ');
+  }, [kind, speakers, speakersManuallyEdited, topic]);
+
+  const formalDialogue = useMemo(() => {
+    if (kind !== 'dialogue') return false;
+    return isFormalDialogueTopic(topic, effectiveSpeakers, tone);
+  }, [kind, topic, effectiveSpeakers, tone]);
+
   const parsedCustomCount = useMemo(() => {
     const num = parseCustomCountInput(customInput);
-    if (!num) return kind === 'dialogue' ? 15 : kind === 'composition' ? 250 : 150;
+    if (!num) return kind === 'dialogue' ? 15 : kind === 'composition' || kind === 'story' ? 250 : 150;
     return kind === 'dialogue'
       ? Math.max(2, Math.min(250, num))
       : Math.max(20, Math.min(2000, num));
   }, [customInput, kind]);
 
   const localResult = useMemo(() => {
-    if (!topic.trim()) return null;
+    if (kind === 'dialogue' || !topic.trim()) return null;
     return generateLocalWriting({
       kind,
       topic,
       tone,
       length,
       customCount: length === 'Custom' ? parsedCustomCount : undefined,
-      speakers,
+      speakers: effectiveSpeakers,
     });
-  }, [kind, topic, tone, length, parsedCustomCount, speakers]);
+  }, [kind, topic, tone, length, parsedCustomCount, effectiveSpeakers]);
 
   useEffect(() => {
     setSavedFlag(false);
     setAiOverride(null);
-  }, [kind, topic, tone, length, parsedCustomCount, speakers]);
+    setGeneratedDialogue(null);
+  }, [kind, topic, tone, length, parsedCustomCount, effectiveSpeakers]);
 
-  const result = aiOverride ?? localResult;
+  const result = kind === 'dialogue' ? (aiOverride ?? generatedDialogue) : (aiOverride ?? localResult);
 
   async function handleGenerateWithAi() {
     if (!topic.trim()) return;
     setLoading(true);
     setSavedFlag(false);
+    const startedAt = performance.now();
+
+    const finishWithMinimumAnimation = async () => {
+      const prefersReducedMotion =
+        typeof window !== 'undefined' &&
+        window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      const minWaitMs = prefersReducedMotion ? 0 : kind === 'dialogue' ? 2600 : 1700;
+      const elapsed = performance.now() - startedAt;
+      if (elapsed < minWaitMs) {
+        await new Promise((resolve) => setTimeout(resolve, minWaitMs - elapsed));
+      }
+    };
+
     try {
       const resp = await fetch('/api/ai/write', {
         method: 'POST',
@@ -105,11 +188,13 @@ export function WriterModule({
           tone,
           length,
           customCount: length === 'Custom' ? parsedCustomCount : undefined,
-          speakers,
+          speakers: effectiveSpeakers,
           bilingual: lang === 'bn',
         }),
       });
       const json = await resp.json();
+      await finishWithMinimumAnimation();
+
       if (resp.ok && json?.data?.body) {
         let bodyText: string = json.data.body;
 
@@ -128,7 +213,7 @@ export function WriterModule({
               tone,
               length: 'Custom',
               customCount: parsedCustomCount,
-              speakers,
+              speakers: effectiveSpeakers,
             }).body.split(/\r?\n/);
             const merged = [...aiLines, ...padPool.slice(aiLines.length, parsedCustomCount)];
             bodyText = merged.slice(0, parsedCustomCount).join('\n');
@@ -145,11 +230,37 @@ export function WriterModule({
           ...stats,
           source: 'ai',
         });
+        setGeneratedDialogue(null);
       } else {
         setAiOverride(null);
+        if (kind === 'dialogue') {
+          setGeneratedDialogue(
+            generateLocalWriting({
+              kind: 'dialogue',
+              topic,
+              tone,
+              length,
+              customCount: length === 'Custom' ? parsedCustomCount : undefined,
+              speakers: effectiveSpeakers,
+            }),
+          );
+        }
       }
     } catch {
+      await finishWithMinimumAnimation();
       setAiOverride(null);
+      if (kind === 'dialogue') {
+        setGeneratedDialogue(
+          generateLocalWriting({
+            kind: 'dialogue',
+            topic,
+            tone,
+            length,
+            customCount: length === 'Custom' ? parsedCustomCount : undefined,
+            speakers: effectiveSpeakers,
+          }),
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -158,6 +269,9 @@ export function WriterModule({
   function handleRubberClear() {
     setSavedFlag(false);
     setAiOverride(null);
+    setGeneratedDialogue(null);
+    setSpeakersManuallyEdited(false);
+    setSpeakers('Rakib & Abdullah');
     onTopicChange('');
   }
 
@@ -173,20 +287,8 @@ export function WriterModule({
   }
 
   function handleSpeak() {
-    if (!result || !('speechSynthesis' in window)) return;
-    if (speaking) {
-      window.speechSynthesis.cancel();
-      setSpeaking(false);
-      return;
-    }
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(`${result.title}. ${result.body}`);
-    utter.lang = 'en-US';
-    utter.rate = speechRate;
-    utter.onend = () => setSpeaking(false);
-    utter.onerror = () => setSpeaking(false);
-    setSpeaking(true);
-    window.speechSynthesis.speak(utter);
+    if (!result) return;
+    void toggleSpeak(`${result.title}. ${result.body}`);
   }
 
   function handleDownloadPdf() {
@@ -201,7 +303,11 @@ export function WriterModule({
   }
 
   const quickCustomOptions =
-    kind === 'dialogue' ? [15, 30, 50, 60, 100] : kind === 'composition' ? [150, 250, 350, 500] : [100, 150, 250, 350];
+    kind === 'dialogue'
+      ? [15, 30, 50, 60, 100]
+      : kind === 'composition' || kind === 'story'
+        ? [150, 250, 350, 500]
+        : [100, 150, 250, 350];
 
   const unitLabel = kind === 'dialogue' ? 'lines' : 'words';
 
@@ -321,9 +427,12 @@ export function WriterModule({
               <input
                 id="dialogue-speakers-input"
                 type="text"
-                value={speakers}
-                onChange={(e) => setSpeakers(e.target.value)}
-                placeholder="Rakib & Abdullah"
+                value={effectiveSpeakers}
+                onChange={(e) => {
+                  setSpeakersManuallyEdited(true);
+                  setSpeakers(e.target.value);
+                }}
+                placeholder="Customer & Bank Manager"
                 className="cream-well w-full px-3 lg:px-3.5 py-1.5 text-xs lg:text-sm font-bold text-[#362419] focus:outline-none"
               />
             </div>
@@ -365,8 +474,10 @@ export function WriterModule({
         </div>
       </div>
 
-      {/* Formatted Reading Card */}
-      {result ? (
+      {/* Loading Screen (Stylish Pen Animation) OR Formatted Reading Card */}
+      {loading ? (
+        <PenWritingLoadingCard kind={kind} isFormal={formalDialogue} lang={lang} />
+      ) : result ? (
         <article className="glass-panel p-4 sm:p-5 lg:p-7 space-y-3.5 lg:space-y-4 min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#362419]/10">
             <div className="min-w-0">
@@ -399,7 +510,13 @@ export function WriterModule({
                 )}
                 <span aria-hidden="true">·</span>
                 <span className="text-[#2E6F40]">
-                  {result.source === 'ai' ? 'Gemini AI' : 'Instant Studio Draft'}
+                  {result.source === 'ai'
+                    ? 'Gemini AI'
+                    : kind === 'dialogue'
+                      ? formalDialogue
+                        ? 'Formal Dialogue'
+                        : 'Structured Dialogue'
+                      : 'Instant Studio'}
                 </span>
               </div>
             </div>
@@ -408,14 +525,34 @@ export function WriterModule({
               <button
                 type="button"
                 onClick={handleSpeak}
+                aria-label={speaking || loadingAudio ? 'Stop reading result aloud' : 'Listen to result'}
+                data-testid="writer-listen-btn"
                 className={`bubbly-btn inline-flex items-center gap-1.5 rounded-full px-3 lg:px-3.5 py-1.5 text-[11px] lg:text-xs font-bold border border-white cursor-pointer ${
-                  speaking
+                  speaking || loadingAudio
                     ? 'caramel-gloss text-white'
                     : 'bg-white/80 hover:bg-white text-[#362419]'
                 }`}
               >
-                {speaking ? <Square className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5 text-[#B86228]" />}
-                <span>{speaking ? (lang === 'bn' ? UI_COPY.stopListening.bn : UI_COPY.stopListening.en) : (lang === 'bn' ? UI_COPY.listen.bn : UI_COPY.listen.en)}</span>
+                {loadingAudio ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : speaking ? (
+                  <Square className="h-3.5 w-3.5" />
+                ) : (
+                  <Volume2 className="h-3.5 w-3.5 text-[#B86228]" />
+                )}
+                <span>
+                  {loadingAudio
+                    ? lang === 'bn'
+                      ? UI_COPY.loadingVoice.bn
+                      : UI_COPY.loadingVoice.en
+                    : speaking
+                      ? lang === 'bn'
+                        ? UI_COPY.stopListening.bn
+                        : UI_COPY.stopListening.en
+                      : lang === 'bn'
+                        ? UI_COPY.listen.bn
+                        : UI_COPY.listen.en}
+                </span>
               </button>
 
               <button
@@ -463,7 +600,7 @@ export function WriterModule({
                       tone,
                       length,
                       customCount: length === 'Custom' ? parsedCustomCount : undefined,
-                      speakers,
+                      speakers: effectiveSpeakers,
                     },
                   );
                   setSavedFlag(true);
@@ -511,9 +648,13 @@ export function WriterModule({
         </article>
       ) : (
         <div className="glass-panel-soft p-6 lg:p-8 text-center text-xs lg:text-sm font-medium text-[#7A6252]">
-          {lang === 'bn'
-            ? 'উপরে একটি বিষয় লিখুন বা উদাহরণ বেছে নিন।'
-            : 'Enter a topic or click an example pill above to generate your writing.'}
+          {kind === 'dialogue'
+            ? lang === 'bn'
+              ? 'সংলাপের বিষয় ও বক্তা নির্বাচন করে "Generate Dialogue" বাটনে ক্লিক করুন।'
+              : 'Enter a dialogue topic and click "Generate Dialogue" to compose your conversation.'
+            : lang === 'bn'
+              ? 'উপরে একটি বিষয় লিখুন বা উদাহরণ বেছে নিন।'
+              : 'Enter a topic or click an example pill above to generate your writing.'}
         </div>
       )}
     </div>

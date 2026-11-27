@@ -1,5 +1,10 @@
 import { jsPDF } from 'jspdf';
-import { WriterLength, WriterResult, WriterTone } from '../types/studio';
+import {
+  MockExamPaper,
+  WriterLength,
+  WriterResult,
+  WriterTone,
+} from '../types/studio';
 
 export interface PdfExportMeta {
   tone: WriterTone;
@@ -23,14 +28,6 @@ export interface ParsedBodyBlock {
   text: string;
 }
 
-const KNOWN_HEADINGS = new Set([
-  'introduction',
-  'core significance',
-  'practical role in daily life',
-  'future outlook',
-  'conclusion',
-]);
-
 export function parseWriterBodyBlocks(
   body: string,
   kind: WriterResult['kind'],
@@ -52,18 +49,6 @@ export function parseWriterBodyBlocks(
         });
         continue;
       }
-    }
-
-    if (
-      kind === 'composition' &&
-      (KNOWN_HEADINGS.has(trimmed.toLowerCase()) ||
-        (trimmed.length <= 42 && !/[.!?]$/.test(trimmed) && /^[A-Z]/.test(trimmed)))
-    ) {
-      blocks.push({
-        type: 'heading',
-        text: trimmed,
-      });
-      continue;
     }
 
     blocks.push({
@@ -263,6 +248,175 @@ export function buildWriterPdfDocument(
 
 export function downloadWriterPdf(result: WriterResult, meta: PdfExportMeta): string {
   const { doc, filename } = buildWriterPdfDocument(result, meta);
+  doc.save(filename);
+  return filename;
+}
+
+const TOPIC_LABELS: Record<string, string> = {
+  narration: 'Narration',
+  voice: 'Voice Change',
+  morpheme: 'Suffix & Prefix',
+  pos: 'Parts of Speech',
+  verbs: 'Verb Changing',
+};
+
+export function buildMockExamPdfDocument(
+  paper: MockExamPaper,
+  includeAnswers = false,
+): { doc: jsPDF; filename: string } {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 18;
+  const contentWidth = pageWidth - marginX * 2;
+  const bottomLimit = pageHeight - 20;
+
+  // Warm sunset header band
+  doc.setFillColor(255, 245, 236);
+  doc.rect(0, 0, pageWidth, 34, 'F');
+  doc.setFillColor(229, 107, 85);
+  doc.rect(0, 0, pageWidth, 2.8, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(184, 98, 40);
+  doc.text('GRAMMAR & WRITING STUDIO · MOCK EXAM', marginX, 13);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(122, 98, 82);
+  doc.text(
+    includeAnswers ? 'Question Paper + Answer Key' : 'Student Question Paper',
+    pageWidth - marginX,
+    13,
+    { align: 'right' },
+  );
+
+  const timeLabel = paper.durationMinutes > 0 ? `${paper.durationMinutes} min` : 'Untimed';
+  const topicText = paper.topics.map((t) => TOPIC_LABELS[t] || t).join(', ');
+  doc.setFontSize(9);
+  doc.setTextColor(110, 80, 72);
+  doc.text(
+    `Level: ${paper.difficulty}  •  Questions: ${paper.questions.length}  •  Full Marks: ${paper.totalMarks}  •  Time: ${timeLabel}`,
+    marginX,
+    22,
+  );
+  doc.text(`Sections: ${topicText}`, marginX, 28);
+
+  doc.setDrawColor(244, 162, 97);
+  doc.setLineWidth(0.4);
+  doc.line(marginX, 34, pageWidth - marginX, 34);
+
+  let y = 46;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(54, 33, 27);
+  const titleLines = doc.splitTextToSize(paper.title, contentWidth) as string[];
+  for (const line of titleLines) {
+    doc.text(line, marginX, y);
+    y += 7;
+  }
+  y += 4;
+
+  const ensureSpace = (neededMm: number) => {
+    if (y + neededMm > bottomLimit) {
+      doc.addPage();
+      y = 20;
+    }
+  };
+
+  paper.questions.forEach((q, idx) => {
+    const cleanPrompt = q.prompt.replace(/\*\*/g, '');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10.5);
+    const promptLines = doc.splitTextToSize(cleanPrompt, contentWidth - 6) as string[];
+    const needed = 12 + promptLines.length * 5.2 + (q.options ? 12 : 8) + (includeAnswers ? 12 : 0);
+    ensureSpace(needed);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(184, 98, 40);
+    doc.text(
+      `Q${idx + 1}. [${TOPIC_LABELS[q.topic] || q.topic}]  ${q.instruction}  (${q.marks} mark${q.marks > 1 ? 's' : ''})`,
+      marginX,
+      y,
+    );
+    y += 5.5;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10.8);
+    doc.setTextColor(54, 36, 25);
+    for (const line of promptLines) {
+      ensureSpace(5.5);
+      doc.text(line, marginX + 4, y);
+      y += 5.2;
+    }
+
+    if (q.type === 'mcq' && q.options && q.options.length > 0) {
+      const optStr = q.options
+        .map((opt, oIdx) => `(${String.fromCharCode(65 + oIdx)}) ${opt}`)
+        .join('    ');
+      const optLines = doc.splitTextToSize(optStr, contentWidth - 6) as string[];
+      doc.setFontSize(9.8);
+      doc.setTextColor(92, 68, 56);
+      for (const line of optLines) {
+        ensureSpace(5);
+        doc.text(line, marginX + 6, y);
+        y += 4.8;
+      }
+    } else if (!includeAnswers) {
+      doc.setDrawColor(210, 195, 182);
+      doc.setLineWidth(0.3);
+      doc.line(marginX + 4, y + 3, pageWidth - marginX, y + 3);
+      y += 6;
+    }
+
+    if (includeAnswers) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(46, 111, 64);
+      const ansLines = doc.splitTextToSize(`Answer: ${q.answer}`, contentWidth - 6) as string[];
+      for (const line of ansLines) {
+        ensureSpace(5);
+        doc.text(line, marginX + 4, y);
+        y += 4.8;
+      }
+    }
+
+    y += 4;
+  });
+
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setDrawColor(235, 220, 205);
+    doc.setLineWidth(0.3);
+    doc.line(marginX, pageHeight - 14, pageWidth - marginX, pageHeight - 14);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(135, 110, 96);
+    doc.text('Grammar & Writing Studio · Mock Exam Generator', marginX, pageHeight - 9);
+    doc.text(`Page ${p} of ${totalPages}`, pageWidth - marginX, pageHeight - 9, {
+      align: 'right',
+    });
+  }
+
+  return {
+    doc,
+    filename: sanitizePdfFilename(paper.title, includeAnswers ? 'answer-key' : 'mock-exam'),
+  };
+}
+
+export function downloadMockExamPdf(
+  paper: MockExamPaper,
+  includeAnswers = false,
+): string {
+  const { doc, filename } = buildMockExamPdfDocument(paper, includeAnswers);
   doc.save(filename);
   return filename;
 }
